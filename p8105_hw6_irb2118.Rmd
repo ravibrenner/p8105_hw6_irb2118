@@ -1,0 +1,10 @@
+---
+title: "p8105 HW6"
+author: "Ravi Brenner"
+date: "2024-11-19"
+output: github_document
+---
+
+```{r setup}
+
+```
