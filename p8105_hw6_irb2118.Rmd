@@ -103,7 +103,7 @@ Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of 
 Bootstrap 5000 times
 ```{r}
 boot_results <- weather_df |>
-  modelr::bootstrap(5000) |>
+  modelr::bootstrap(50) |>
   mutate(strap = map(strap, as_tibble),
          models = map(strap, \(df) lm(tmax ~ tmin, data = df)),
          results = map(models, value_extract)) |>
@@ -151,7 +151,7 @@ homicide_df <- read_csv("data/homicide-data.csv") |>
   filter(!city_state %in% c("Dallas, TX",
                             "Phoenix, AZ",
                             "Kansas City, MO",
-                            "Tulsa, OK"),
+                            "Tulsa, AL"),
          victim_race %in% c("White","Black"))
 ```
 
@@ -161,17 +161,48 @@ For the city of Baltimore, MD, use the glm function to fit a logistic regression
 baltimore_fit <- glm(solved ~ victim_age + victim_sex + victim_race, 
                      family = binomial,
                      data = homicide_df)
+```
 
-broom::tidy(baltimore_fit) |>
-  mutate(OR = exp(estimate))
+Function to get estimate and 95% CI of the adjusted OR for solving homicides comparing male to female victims, holding all other variables fixed
+```{r}
+or_ci <- function(model) {
+  broom::tidy(model, conf.int = TRUE) |>
+    mutate(or = exp(estimate),
+           or_low = exp(conf.low),
+           or_high = exp(conf.high)) |>
+    filter(term == "victim_sexMale") |>
+    select(or,or_low,or_high) 
+}
 
-confint(baltimore_fit) |> exp()
+or_ci(baltimore_fit)
 ```
 
 
 Now run glm for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing male victims to female victims. Do this within a “tidy” pipeline, making use of purrr::map, list columns, and unnest as necessary to create a dataframe with estimated ORs and CIs for each city.
 
+```{r}
+city_male_or <- homicide_df |>
+  nest(.by = city_state) |>
+  mutate(models = map(data, \(df) glm(solved ~ victim_age + victim_sex + victim_race,
+                                      family = binomial,
+                                      data = df)),
+         results = map(models, or_ci)) |>
+  select(city_state, results) |>
+  unnest(results)
+```
+
+
 Create a plot that shows the estimated ORs and CIs for each city. Organize cities according to estimated OR, and comment on the plot.
+```{r}
+city_male_or |>
+  mutate(city_state = fct_reorder(city_state, or)) |>
+  ggplot(aes(y = city_state, x = or)) + 
+  geom_point() +
+  geom_errorbar(aes(xmin = or_low, xmax = or_high)) + 
+  geom_vline(xintercept = 1, linetype = "dashed")
+```
+
+Cities to the left of 1, odds of murder being solved are lower for male victims than female victims (odds ratio < 1). Cities to the right of OR=1, odds of murder being solved are higher for males than females. Based on the 95% CI, there are no cities where the odds for a murder being solves for males is higher than 1 with 95% confidence (?)
 
 
 
