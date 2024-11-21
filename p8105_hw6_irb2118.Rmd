@@ -7,6 +7,7 @@ output: github_document
 
 ```{r setup, include = FALSE, message=FALSE, warning=FALSE}
 library(tidyverse)
+library(modelr)
 set.seed(1)
 
 knitr::opts_chunk$set(
@@ -103,7 +104,7 @@ Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of 
 Bootstrap 5000 times
 ```{r}
 boot_results <- weather_df |>
-  modelr::bootstrap(5000) |>
+  bootstrap(5000) |>
   mutate(strap = map(strap, as_tibble),
          models = map(strap, \(df) lm(tmax ~ tmin, data = df)),
          results = map(models, value_extract)) |>
@@ -239,17 +240,108 @@ bwt_df <- read_csv("data/birthweight.csv") |>
                         labels = c("White","Black","Asian","Puerto Rican","Other","Unknown")),
          mrace = factor(mrace, 
                         levels = c(1,2,3,4,8),
-                        labels = c("White","Black","Asian","Puerto Rican","Other")))
+                        labels = c("White","Black","Asian","Puerto Rican","Other")),
+         malform = factor(malform,
+                          level = c(0,1),
+                          labels = c("absent","present")))
 ```
 
 
 Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
 
+Not knowing much about this data, I first want to understand the relationship between each of these variables vs. birthweight. I can accomplish this by plotting them in a grid. To do this I will separate out the numeric and factor variables:
+
+```{r}
+bwt_df |>
+  select(where(is.numeric)) |>
+  pivot_longer(-bwt,
+               names_to = "covariate",
+               values_to = "value") |>
+  ggplot(aes(x = value, y = bwt)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  facet_wrap(~covariate, scales = "free_x")
+```
+
+```{r}
+bwt_df |>
+  select(bwt, !where(is.numeric)) |>
+  pivot_longer(-bwt,
+               names_to = "covariate",
+               values_to = "value") |>
+  ggplot(aes(x = value, y = bwt)) + 
+  geom_boxplot() + 
+  facet_wrap(~covariate, scales = "free_x")
+```
+
+Based on these, I will focus on the numeric variables. Seeing that there is a negative relationship with smoken (number of cigarette's smoked), I want to include that while controlling for covariates like blength, gaweeks, ppbmi (since this captures both mheight and ppwt), and wtgain, which should give an estimate for the impact of smoking on birthweight controlling for some more "structural" factors
+
+My hypothesized model
+```{r}
+speculative_fit <- lm(bwt ~ smoken + blength + gaweeks + ppbmi + wtgain,
+                      data = bwt_df)
+
+```
+ 
+ show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
+```{r}
+add_residuals(bwt_df, speculative_fit)  |>
+  add_predictions(speculative_fit) |>
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point()
+```
+ 
+
 Compare your model to two others:
 
 One using length at birth and gestational age as predictors (main effects only)
+```{r}
+len_age_fit <- lm(bwt ~ blength + gaweeks,
+                  data = bwt_df)
+```
+
+
 One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+```{r}
+interact_fit <- lm(bwt ~ bhead * blength * babysex,
+                   data = bwt_df)
+```
+
+
 Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
+
+```{r}
+cv_df <- 
+  crossv_mc(bwt_df, 100) |>
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  ) 
+
+cv_res_df <- cv_df |>
+  mutate(
+    spec_mod = map(train, \(x) lm(bwt ~ smoken + blength + gaweeks + ppbmi + wtgain, data = x)),
+    len_age_mod = map(train, \(x) lm(bwt ~ blength + gaweeks, data = x)),
+    interact_mod = map(train, \(x) lm(bwt ~ bhead * blength * babysex, data = x))
+    ) |>
+  mutate(
+    rmse_spec = map2_dbl(spec_mod, test, rmse),
+    rmse_len_age = map2_dbl(len_age_mod, test, rmse),
+    rmse_interact = map2_dbl(interact_mod, test, rmse)
+  )
+```
+
+```{r}
+cv_res_df |>
+  select(starts_with("rmse")) |>
+  pivot_longer(everything(),
+               names_to = "model",
+               values_to = "rmse",
+               names_prefix = "rmse_") |>
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin()
+```
+
 
 Note that although we expect your model to be reasonable, model building itself is not a main idea of the course and we don’t necessarily expect your model to be “optimal”.
 
