@@ -1,8 +1,9 @@
 ---
 title: "p8105 HW6"
 author: "Ravi Brenner"
-date: "2024-11-19"
-output: github_document
+output: 
+  github_document:
+    df_print: kable
 ---
 
 ```{r setup, include = FALSE, message=FALSE, warning=FALSE}
@@ -14,7 +15,9 @@ knitr::opts_chunk$set(
   fig.width = 6,
   fig.asp = .6,
   out.width = "90%",
-  dpi = 300
+  dpi = 300,
+  warning = FALSE,
+  message = FALSE
 )
 
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
@@ -34,7 +37,7 @@ This homework will demonstrate the use of linear models in R, including bootstra
 
 # Methods
 
-The datasets can be downloaded from the homework assignment on the (course website)[<https://p8105.com/homework_6.html>]. R packages used include `tidyverse`, `broom`, and `modelr`, as well as the `rnoaa` package to get the weather data.
+The datasets can be downloaded from the homework assignment on the [course website](<https://p8105.com/homework_6.html>). R packages used include `tidyverse`, `broom`, and `modelr`, as well as the `rnoaa` package to get the weather data.
 
 # Problems
 
@@ -98,15 +101,6 @@ weather_df |>
 ```
 
 
-Use 5000 bootstrap samples and, for each bootstrap sample, produce
-estimates of these two quantities. Plot the distribution of your
-estimates, and describe these in words. Using the 5000 bootstrap
-estimates, identify the 2.5% and 97.5% quantiles to provide a 95%
-confidence interval for 𝑟̂ 2 and log(𝛽̂ 0∗𝛽̂ 1) . Note: broom::glance() is
-helpful for extracting 𝑟̂ 2 from a fitted regression, and broom::tidy()
-(with some additional wrangling) should help in computing log(𝛽̂ 0∗𝛽̂ 1)
-
-Bootstrap 5000 times
 Now, we can use 5000 bootstrap samples, model the tmax ~ tmin relationship for each, and extract the results for  $r^2$ and $\log{(\beta_0 * \beta_1)}$ for each.
 
 ```{r}
@@ -129,6 +123,7 @@ boot_results |>
              linetype="dashed") +
   labs(x = latex2exp::TeX("$r^2$"))
 ```
+
 $r^2$ Looks fairly symmetrical around 0.91, with a slightly longer tail at the lower end, and a fairly wide area where the density peaks.
 
 ```{r}
@@ -139,6 +134,7 @@ boot_results |>
              linetype="dashed") +
   labs(x = latex2exp::TeX("$\\log{(\\beta_0 * \\beta_1)}$"))
 ```
+
 $\log{(\beta_0 * \beta_1)}$ reaches a sharper peak just above 2, but is otherwise also very symmetrical.
 
 We can also produce 95% confidence intervals for these values, using the 0.025 and 0.975 quantiles.
@@ -151,8 +147,7 @@ boot_results |>
   group_by(var) |>
   summarize(boot_est = mean(value),
             boot_ci_ll = quantile(value, 0.025),
-            boot_ci_ul = quantile(value, 0.975)) |>
-  knitr::kable()
+            boot_ci_ul = quantile(value, 0.975))
 ```
 
 ## Problem 2
@@ -171,14 +166,8 @@ homicide_df <- read_csv("data/homicide-data.csv") |>
          victim_race %in% c("White","Black"))
 ```
 
-For the city of Baltimore, MD, use the glm function to fit a logistic
-regression with resolved vs unresolved as the outcome and victim age,
-sex and race as predictors. Save the output of glm as an R object; apply
-the broom::tidy to this object; and obtain the estimate and confidence
-interval of the adjusted odds ratio for solving homicides comparing male
-victims to female victims keeping all other variables fixed.
 
-Here, we will fit a logistic regression model with resolved vs. unresolved as the outcome and victim age, sex, and race as predictors, focusing only on Baltimore, MD.
+Here, we will fit a logistic regression model with resolved vs. unresolved as the outcome and victim age, sex, and race as predictors, focusing only on Baltimore, MD for now.
 
 ```{r}
 baltimore_fit <- homicide_df |>
@@ -216,11 +205,12 @@ city_male_or <- homicide_df |>
   select(city_state, results) |>
   unnest(results)
 ```
+
 We should note that these was a warning calculating the confidence interval for some cities. This may be fine, but it is worth interpreting the results with caution.
 
 Plotting these results:
 
-```{r}
+```{r, fig.asp=0.8}
 city_male_or |>
   mutate(city_state = fct_reorder(city_state, or)) |>
   ggplot(aes(y = city_state, x = or)) + 
@@ -228,7 +218,8 @@ city_male_or |>
   geom_errorbar(aes(xmin = or_low, xmax = or_high)) + 
   geom_vline(xintercept = 1, linetype = "dashed") + 
   labs(x = "OR",
-       y = "City, state")
+       y = "City, state") +
+  theme(axis.text.y = element_text(size = 7))
 ```
 
 For cities to the left of 1, the odds of murder being solved are lower for male victims than female victims (odds ratio \< 1). Cities to the right of OR=1, odds of murder being solved are higher for males than females. Based on the 95% CI, there are no cities where the odds for a murder being solves for males is higher than 1 with 95% confidence.
@@ -251,17 +242,10 @@ bwt_df <- read_csv("data/birthweight.csv") |>
                           labels = c("absent","present")))
 ```
 
-Propose a regression model for birthweight. This model may be based on a
-hypothesized structure for the factors that underly birthweight, on a
-data-driven model-building process, or a combination of the two.
-Describe your modeling process and show a plot of model residuals
-against fitted values – use add_predictions and add_residuals in making
-this plot.
-
 Not knowing much about this data, I first want to understand the relationship between each of these variables vs. birthweight. I can accomplish this by plotting them in a grid. To do this I will separate out the numeric and factor variables:
 
 First numeric variables:
-```{r}
+```{r, fig.asp=0.8}
 bwt_df |>
   select(where(is.numeric)) |>
   pivot_longer(-bwt,
@@ -274,7 +258,7 @@ bwt_df |>
 ```
 
 And factor variables
-```{r}
+```{r, fig.asp=0.8}
 bwt_df |>
   select(bwt, !where(is.numeric)) |>
   pivot_longer(-bwt,
@@ -305,9 +289,11 @@ add_residuals(bwt_df, speculative_fit)  |>
   labs(x = "Fitted values",
        y = "Residuals") 
 ```
+
 The residuals are generally centered around 0, although there are some outlier values on the high and low end that could be concerning.
 
 We can compare this model with two others.
+
 One using length at birth and gestational age as predictors:
 
 ```{r}
@@ -357,6 +343,7 @@ cv_res_df |>
   labs(x = "",
        y = "Prediction error")
 ```
+
 Based on these results, it looks like my hypothetical model had slightly lower prediction error than the model based on length and gestational age only, but the model based on the interaction of `bhead`, `blength`, and `babysex` had the lowest prediction error of the three.
 
 # Conclusion
