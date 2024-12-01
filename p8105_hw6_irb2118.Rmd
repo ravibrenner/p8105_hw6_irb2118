@@ -124,7 +124,7 @@ boot_results |>
   labs(x = latex2exp::TeX("$r^2$"))
 ```
 
-$r^2$ Looks fairly symmetrical around 0.91, with a slightly longer tail at the lower end, and a fairly wide area where the density peaks.
+$r^2$ Looks fairly symmetrical just above 0.91, with a slightly longer tail at the lower end.
 
 ```{r}
 boot_results |>
@@ -135,7 +135,7 @@ boot_results |>
   labs(x = latex2exp::TeX("$\\log{(\\beta_0 * \\beta_1)}$"))
 ```
 
-$\log{(\beta_0 * \beta_1)}$ reaches a sharper peak just above 2, but is otherwise also very symmetrical.
+$\log{(\beta_0 * \beta_1)}$ reaches a wide peak just above 2, but is otherwise very symmetrical.
 
 We can also produce 95% confidence intervals for these values, using the 0.025 and 0.975 quantiles.
 
@@ -195,7 +195,7 @@ or_ci(baltimore_fit)
 
 Now we can run this logistic regression model for each city in the dataset, and get the odds ratio and confidence interval for solving homicides comparing male victims to female victims.
 
-```{r}
+```{r, warning=TRUE}
 city_male_or <- homicide_df |>
   nest(.by = city_state) |>
   mutate(models = map(data, \(df) glm(solved ~ victim_age + victim_sex + victim_race,
@@ -206,7 +206,7 @@ city_male_or <- homicide_df |>
   unnest(results)
 ```
 
-We should note that these was a warning calculating the confidence interval for some cities. This may be fine, but it is worth interpreting the results with caution.
+We should note that there was a warning calculating the confidence interval for some cities. This may be fine, but it is worth interpreting the results with caution.
 
 Plotting these results:
 
